@@ -1,0 +1,82 @@
+@use 'sass:selector';
+@use 'sass:string';
+@use 'sass:list';
+
+@mixin mode($mode) {
+	$opposite-mode: '';
+
+	@if $mode =='light' {
+		$opposite-mode: 'dark';
+	}
+
+	@else {
+		$opposite-mode: 'light';
+	}
+
+	$individual-selectors: selector.parse(&);
+
+	$new-selectors: (
+	);
+
+// Split into individual selectors
+@each $individual-selector in $individual-selectors {
+	// Split by :: to find pseudo elements
+	$parts: string.split(#{$individual-selector}, '::', 2);
+
+	@if list.length($parts)>1 {
+		// Selector has pseudo elements:
+		// Split up the selector, apply mode modifier and stick the pseudo element on again
+		$new-selectors: list.append($new-selectors,
+				"#{selector.append(list.nth($parts, 1), ':where(:root:not([data-theme=#{$mode}]):not([data-theme=#{$opposite-mode}]) *)')}::#{list.nth($parts, 2)}",
+				comma);
+	}
+
+	@else {
+		// Selector has no pseudo elements: Simply append the :where() clause
+		$new-selectors: list.append($new-selectors,
+				selector.append($individual-selector, ':where(:root:not([data-theme=#{$mode}]):not([data-theme=#{$opposite-mode}]) *)'),
+				comma);
+	}
+}
+
+@media (prefers-color-scheme: $mode) {
+	@at-root #{$new-selectors} {
+		@content;
+	}
+}
+
+@at-root #{$new-selectors} {
+	@content;
+}
+}
+
+@mixin light {
+	@include mode('light') {
+		@content;
+	}
+}
+
+@mixin dark {
+	@include mode('dark') {
+		@content;
+	}
+}
+
+// ================================
+
+body {
+	font-family: sans-serif;
+	text-align: center;
+
+	// matches data-theme="light" or data-theme="auto" with system instructing light mode
+	@include light {
+		background: white;
+		color: black;
+	}
+
+	// matches data-theme="dark" or data-theme="auto" with system instructing dark mode
+	@include dark {
+		background: black;
+		color: white;
+	}
+}
