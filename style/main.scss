@@ -66,7 +66,7 @@
 
 body {
 	font-family: sans-serif;
-	text-align: center;
+	// text-align: center;
 
 	// matches data-theme="light" or data-theme="auto" with system instructing light mode
 	@include light {
@@ -78,5 +78,104 @@ body {
 	@include dark {
 		background: black;
 		color: white;
+	}
+}
+
+.json-row {
+	font-family: monospace;
+
+	.json-row {
+		margin-left: 1.5rem;
+	}
+
+	>.json-children {
+		display: none;
+	}
+
+	>a>.arrow::after {
+		display: inline-block;
+		content: "►";
+		transition: transform 100ms ease-in;
+
+		margin-right: 0.2rem;
+	}
+
+	&.expanded {
+		>.json-children {
+			display: contents;
+		}
+
+		>a>.arrow::after {
+			transform: rotate(90deg);
+		}
+	}
+
+	>a {
+		cursor: pointer;
+		text-decoration: none;
+	}
+}
+
+.key {
+	@include light {
+		color: #00008B;
+	}
+
+	@include dark {
+		color: #23A0DB;
+	}
+}
+
+.object::before {
+	content: "Object";
+}
+
+.array {
+	&::before {
+		content: "Array[";
+	}
+
+	&::after {
+		content: "]";
+	}
+
+	user-select: none;
+}
+
+.null {
+	@include light {
+		color: #855A00;
+	}
+
+	@include dark {
+		color: #EEC97D;
+	}
+}
+
+.bool {
+	color: red;
+}
+
+.number {
+	@include light {
+		// color: blue;
+		color: yellow;
+	}
+
+	@include dark {
+		color: #66C2FF;
+	}
+}
+
+.text {
+	white-space: pre;
+	word-wrap: break-word;
+
+	@include light {
+		color: green;
+	}
+
+	@include dark {
+		color: #31F031;
 	}
 }
