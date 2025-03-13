@@ -51,9 +51,19 @@ pub fn App() -> impl IntoView {
 fn HomePage() -> impl IntoView {
     let (variant, set_variant) = signal(0u8);
     let json_data = Resource::new(move || variant.get(), load_data);
+    let version = Resource::new(|| 0, dump_version);
 
     view! {
-        <h1>"Factorio data.raw explorer"</h1>
+        <h1>"Factorio data.raw explorer "
+            <Suspense fallback=move || view! {"(?.?.?)"}>
+                {move || {
+                    version.get().map(|res| match res {
+                        Ok(v) => format!("({v})").into_view(),
+                        Err(e) => e.to_string().into_view(),
+                    })
+                }}
+            </Suspense>
+        </h1>
         <p>"Select the dump variant to explore: "
             <select on:change:target=move |ev| {
                 set_variant.set(ev.target().value().parse().unwrap());
@@ -177,6 +187,12 @@ fn JsonCollapsibleHeader(
             <JsonKV key=key kind=kind val=val/>
         </a>
     }
+}
+
+#[server]
+pub async fn dump_version(id: u8) -> Result<String, ServerFnError> {
+    let version = tokio::fs::read_to_string("dumps/version.txt").await?;
+    Ok(version.trim().to_string())
 }
 
 #[server]
