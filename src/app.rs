@@ -65,7 +65,10 @@ fn HomePage() -> impl IntoView {
                 Ok(None) => {
                     ().into_any()
                 },
-                Ok(Some(data)) => view! { <JsonViewer val=data start_open=true/> }.into_any(),
+                Ok(Some((data, name))) => view! {
+                    <p><a href={format!("https://modname_resolver.bpbin.com/raw/{name}")} id="dump_dl" download={format!("{name}.dump.json")}>"Download dump"</a></p>
+                    <JsonViewer val=data start_open=true/>
+                }.into_any(),
                 Err(e) => view! { <p>{e}</p> }.into_any(),
             }
           })}
@@ -280,11 +283,13 @@ pub async fn get_from_resolver<T: serde::de::DeserializeOwned>(uri: &str) -> Res
     Ok(json)
 }
 
-pub async fn get_dump(variant: ReadSignal<Option<String>>) -> Result<Option<JsonValue>, String> {
+pub async fn get_dump(
+    variant: ReadSignal<Option<String>>,
+) -> Result<Option<(JsonValue, String)>, String> {
     let Some(variant) = variant.get() else {
         return Ok(None);
     };
 
     let res = get_from_resolver(&format!("raw/{variant}")).await?;
-    Ok(Some(res))
+    Ok(Some((res, variant)))
 }

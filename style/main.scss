@@ -81,6 +81,22 @@ body {
 	}
 }
 
+#dump_dl {
+	text-decoration: none;
+	padding: 0.25rem;
+	border-radius: 0.25rem;
+
+	@include light {
+		color: black;
+		background-color: #aaa;
+	}
+
+	@include dark {
+		color: white;
+		background-color: #333;
+	}
+}
+
 .json-row {
 	font-family: monospace;
 
