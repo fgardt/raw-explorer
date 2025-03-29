@@ -66,6 +66,7 @@
 
 body {
 	font-family: sans-serif;
+	font-size: 1rem;
 	// text-align: center;
 
 	// matches data-theme="light" or data-theme="auto" with system instructing light mode
@@ -82,9 +83,10 @@ body {
 }
 
 #dump_dl {
-	text-decoration: none;
+	cursor: pointer;
 	padding: 0.25rem;
 	border-radius: 0.25rem;
+	text-decoration: none;
 
 	@include light {
 		color: black;

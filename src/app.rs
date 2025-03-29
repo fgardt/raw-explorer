@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use base64::Engine;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
@@ -51,7 +52,7 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn HomePage() -> impl IntoView {
-    let (variant, set_variant) = signal(None);
+    let (variant, set_variant) = RwSignal::new(None).split();
     let dump = LocalResource::new(move || get_dump(variant));
 
     view! {
@@ -65,10 +66,12 @@ fn HomePage() -> impl IntoView {
                 Ok(None) => {
                     ().into_any()
                 },
-                Ok(Some((data, name))) => view! {
-                    <p><a href={format!("https://modname_resolver.bpbin.com/raw/{name}")} id="dump_dl" download={format!("{name}.dump.json")}>"Download dump"</a></p>
-                    <JsonViewer val=data start_open=true/>
-                }.into_any(),
+                Ok(Some((data, name))) => {
+                    view! {
+                        <p><DownloadButton data=data.clone() name=name/></p>
+                        <JsonViewer val=data start_open=true/>
+                    }.into_any()
+                },
                 Err(e) => view! { <p>{e}</p> }.into_any(),
             }
           })}
@@ -219,6 +222,44 @@ fn ModSelector(selected_mod: WriteSignal<Option<String>>) -> impl IntoView {
                 })}
             </select>
         </Suspense>
+    }
+}
+
+#[component]
+fn DownloadButton(data: JsonValue, name: String) -> impl IntoView {
+    let clicked = RwSignal::new(false);
+    let is_clicked = move || clicked.get();
+
+    view! {
+        { move ||
+            if is_clicked() {
+                let a_ref = NodeRef::<leptos::html::A>::new();
+
+                Effect::new(move || {
+                    let Some(a) = a_ref.get_untracked() else {
+                        return;
+                    };
+
+                    a.click();
+                });
+
+                let dump = base64::prelude::BASE64_STANDARD.encode(serde_json::to_string_pretty(&data).unwrap());
+
+                view! {
+                    <a id="dump_dl" node_ref=a_ref href={format!("data:application/json;charset=utf-8;base64,{dump}")} download={format!("{name}.dump.json")}>
+                        "Download dump"
+                    </a>
+                }.into_any()
+            } else {
+                let on_click = move |_| {
+                    clicked.set(true);
+                };
+                view! {
+                    <a id="dump_dl" on:click=on_click>"Download dump"</a>
+                }
+                .into_any()
+            }
+        }
     }
 }
 
