@@ -86,7 +86,11 @@ body {
 	font-family: monospace;
 
 	.json-row {
-		margin-left: 1.5rem;
+		margin-left: 1.25rem;
+	}
+
+	.json-row:not(:has(a)) {
+		margin-left: 2rem;
 	}
 
 	>.json-children {
