@@ -5,9 +5,18 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Debug, Clone, Default, serde::Serialize)]
+#[derive(Debug, Default, serde::Serialize)]
 pub struct Map<V> {
-    map: BTreeMap<Arc<str>, V>,
+    #[serde(flatten)]
+    map: Arc<BTreeMap<Arc<str>, V>>,
+}
+
+impl<V> std::clone::Clone for Map<V> {
+    fn clone(&self) -> Self {
+        Self {
+            map: Arc::clone(&self.map),
+        }
+    }
 }
 
 impl<V> Deref for Map<V> {
@@ -28,7 +37,7 @@ impl<V: Eq> Eq for Map<V> {}
 
 impl Hash for Map<DedupValue> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let mut kv = Vec::from_iter(&self.map);
+        let mut kv = Vec::from_iter(&*self.map);
         kv.sort_unstable_by(|a, b| a.0.cmp(b.0));
         kv.hash(state);
     }
@@ -37,18 +46,19 @@ impl Hash for Map<DedupValue> {
 impl<V> std::iter::FromIterator<(Arc<str>, V)> for Map<V> {
     fn from_iter<T: IntoIterator<Item = (Arc<str>, V)>>(iter: T) -> Self {
         Self {
-            map: iter.into_iter().collect(),
+            map: Arc::new(iter.into_iter().collect()),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize)]
+#[serde(untagged)]
 pub enum DedupValue {
     Null,
     Bool(bool),
     Number(serde_json::Number),
     String(Arc<str>),
-    Array(Box<[Self]>),
+    Array(Arc<[Self]>),
     Object(Map<Self>),
 }
 
@@ -76,7 +86,7 @@ impl DedupValue {
                 let a = a
                     .into_iter()
                     .map(|v| Self::dedup_helper(v, known))
-                    .collect::<Box<_>>();
+                    .collect();
                 Self::Array(a)
             }
             serde_json::Value::Object(o) => {
@@ -97,7 +107,7 @@ impl DedupValue {
                         (k, Self::dedup_helper(v, known))
                     })
                     .collect();
-                Self::Object(Map { map: o })
+                Self::Object(Map { map: Arc::new(o) })
             }
         }
     }

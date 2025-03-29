@@ -119,6 +119,42 @@ body {
 		cursor: pointer;
 		text-decoration: none;
 	}
+
+	>button {
+		cursor: copy;
+		border: none;
+		background-color: #0000;
+
+		padding: 0;
+		margin: 0;
+		margin-left: 0.5rem;
+		vertical-align: middle;
+		line-height: 0.5rem;
+
+		transition: ease-in-out 75ms;
+
+		@include light {
+			color: black;
+		}
+
+		@include dark {
+			color: white;
+		}
+
+		&:hover {
+			@include light {
+				color: #00008B;
+			}
+
+			@include dark {
+				color: #23A0DB;
+			}
+		}
+
+		&:active {
+			transform: scale(0.9);
+		}
+	}
 }
 
 .key {

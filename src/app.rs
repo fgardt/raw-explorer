@@ -1,11 +1,13 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use leptos::prelude::*;
+use leptos_icons::Icon;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
     components::{Route, Router, Routes},
     StaticSegment,
 };
+use leptos_use::{use_clipboard, UseClipboardReturn};
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -100,6 +102,7 @@ fn JsonViewer(
         }
         DedupValue::Array(arr) => {
             let len = arr.len();
+            let raw = arr.clone();
             let children = move || {
                 open.get().then(|| {
                     arr.iter()
@@ -114,7 +117,7 @@ fn JsonViewer(
             };
 
             view! {
-                <JsonCollapsibleHeader key=key kind="array" val=len.to_string() write=set_open />
+                <JsonCollapsibleHeader key=key kind="array" val=len.to_string() write=set_open raw=DedupValue::Array(raw) />
                 <div class="json-children">
                     {children}
                 </div>
@@ -122,6 +125,7 @@ fn JsonViewer(
             .into_any()
         }
         DedupValue::Object(obj) => {
+            let raw = obj.clone();
             let children = move || {
                 open.get().then(|| {
                     obj.iter()
@@ -135,7 +139,7 @@ fn JsonViewer(
             };
 
             view! {
-                <JsonCollapsibleHeader key=key kind="object" write=set_open />
+                <JsonCollapsibleHeader key=key kind="object" write=set_open raw=DedupValue::Object(raw) />
                 <div class="json-children">
                     {children}
                 </div>
@@ -174,12 +178,26 @@ fn JsonCollapsibleHeader(
     kind: &'static str,
     #[prop(optional)] val: String,
     write: WriteSignal<bool>,
+    raw: DedupValue,
 ) -> impl IntoView {
+    let UseClipboardReturn {
+        is_supported, copy, ..
+    } = use_clipboard();
+
     view! {
         <a on:click=move |_| write.update(|v| *v = !*v)>
             <span class="arrow"/>
             <JsonKV key=key kind=kind val=val/>
         </a>
+        <Show when=move || is_supported.get()>
+            <button on:click={
+                let copy = copy.clone();
+                let raw = raw.clone(); // cloning DedupValue should be cheap since its mostly Arc internally
+                move |_| copy(&serde_json::to_string_pretty(&raw).unwrap())
+            }>
+                <Icon icon={icondata::FiCopy} width="1.1rem" height="1.1rem" />
+            </button>
+        </Show>
     }
 }
 

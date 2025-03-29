@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 base64 = "0.22.1"
 leptos = { version = "0.7.8" }
+leptos-use = { version = "0.15" }
 leptos_router = { version = "0.7.8" }
 axum = { version = "0.7", optional = true }
 console_error_panic_hook = "0.1"
@@ -28,6 +29,8 @@ reqwest = { version = "0.12", default-features = false, features = [
     "charset",
     "json",
 ] }
+leptos_icons = "0.5.0"
+icondata = "0.5.0"
 
 [features]
 hydrate = ["leptos/hydrate"]
@@ -38,6 +41,7 @@ ssr = [
     "dep:tower-http",
     "dep:leptos_axum",
     "leptos/ssr",
+    "leptos-use/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
 ]
