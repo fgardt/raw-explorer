@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
@@ -49,38 +51,24 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn HomePage() -> impl IntoView {
-    let (variant, set_variant) = signal(0u8);
-    let json_data = Resource::new(move || variant.get(), load_data);
-    let version = Resource::new(|| 0, dump_version);
+    let (variant, set_variant) = signal(None);
+    let dump = LocalResource::new(move || get_dump(variant));
 
     view! {
-        <h1>"Factorio data.raw explorer "
-            <Suspense fallback=move || view! {"(?.?.?)"}>
-                {move || {
-                    version.get().map(|res| match res {
-                        Ok(v) => format!("({v})").into_view(),
-                        Err(e) => e.to_string().into_view(),
-                    })
-                }}
-            </Suspense>
-        </h1>
+        <h1>"Factorio data.raw explorer"</h1>
         <p>"Select the dump variant to explore: "
-            <select on:change:target=move |ev| {
-                set_variant.set(ev.target().value().parse().unwrap());
-            }>
-                <option value="0">"base"</option>
-                <option value="1">"space-age"</option>
-                <option value="2">"quality"</option>
-                <option value="3">"elevated-rails"</option>
-            </select>
+            <ModSelector selected_mod=set_variant />
         </p>
         <Suspense fallback=move || view! { <p>"Loading..."</p> }>
-          {move || {
-            json_data.get().map(|res| match res {
-                Ok(data) => view! { <JsonViewer val=data start_open=true/> }.into_any(),
-                Err(e) => view! { <p>{e.to_string()}</p> }.into_any(),
-            })
-          }}
+          {move || Suspend::new(async move {
+            match dump.await {
+                Ok(None) => {
+                    ().into_any()
+                },
+                Ok(Some(data)) => view! { <JsonViewer val=data start_open=true/> }.into_any(),
+                Err(e) => view! { <p>{e}</p> }.into_any(),
+            }
+          })}
         </Suspense>
     }
 }
@@ -189,27 +177,114 @@ fn JsonCollapsibleHeader(
     }
 }
 
-#[server]
-pub async fn dump_version(id: u8) -> Result<String, ServerFnError> {
-    let version = tokio::fs::read_to_string("dumps/version.txt").await?;
-    Ok(version.trim().to_string())
+#[component]
+fn ModSelector(selected_mod: WriteSignal<Option<String>>) -> impl IntoView {
+    let mods = LocalResource::new(|| get_from_resolver::<AvailableMods>("stats"));
+
+    view! {
+        <Suspense fallback=move || view! {
+            <select>
+                <option value="" disabled selected>"Loading available mods.."</option>
+            </select>
+        }>
+            <select on:change:target=move |ev| {
+                let m = ev.target().value();
+                let val = if m.is_empty() { None } else { Some(m) };
+
+                selected_mod.set(val);
+            }>
+                <option value="" disabled>"Select a mod"</option>
+                {move || Suspend::new(async move {
+                    match mods.await {
+                        Ok(mods) => {
+                            mods.build_list().iter().enumerate().map(|(idx, (name, version))| {
+                                    if idx == 0 {
+                                        selected_mod.set(Some(name.clone()));
+                                    }
+
+                                    view! {
+                                        <option value={name.clone()}>{name.clone()} " (" {version.clone()} ")"</option>
+                                    }
+                                }).collect_view().into_any()
+                        }
+                        Err(e) => {
+                            view! {
+                                <option value="" disabled selected>{e}</option>
+                            }.into_any()
+                        }
+                    }
+                })}
+            </select>
+        </Suspense>
+    }
 }
 
-#[server]
-pub async fn load_data(id: u8) -> Result<JsonValue, ServerFnError> {
-    use tokio::io::AsyncReadExt;
+#[derive(serde::Deserialize, Clone)]
+struct AvailableMods {
+    #[serde(rename = "processed")]
+    raw: BTreeSet<String>,
+}
 
-    let filename = match id {
-        0 => "base.json",
-        1 => "space-age.json",
-        2 => "quality.json",
-        3 => "elevated-rails.json",
-        _ => return Err(ServerFnError::ServerError(format!("Invalid id: {id}"))),
+impl AvailableMods {
+    fn build_list(&self) -> Box<[(String, String)]> {
+        const WUBE_MODS: [&str; 4] = ["base", "space-age", "quality", "elevated-rails"];
+
+        let mut split = self
+            .raw
+            .iter()
+            .filter_map(|r| {
+                let mut parts = r.split('_').collect::<Vec<_>>();
+                if parts.len() < 2 {
+                    return None;
+                }
+
+                let version = parts.pop()?.to_string();
+                let name = parts.join("_");
+
+                Some((name, version))
+            })
+            .collect::<Vec<_>>();
+
+        split.sort_by(|(a, _), (b, _)| {
+            let a_wube = WUBE_MODS.iter().position(|&m| m == a).unwrap_or(usize::MAX);
+            let b_wube = WUBE_MODS.iter().position(|&m| m == b).unwrap_or(usize::MAX);
+
+            match a_wube.cmp(&b_wube) {
+                std::cmp::Ordering::Equal => a.cmp(b),
+                other => other,
+            }
+        });
+        split.into_boxed_slice()
+    }
+}
+
+pub async fn get_from_resolver<T: serde::de::DeserializeOwned>(uri: &str) -> Result<T, String> {
+    let resp = reqwest::Client::new()
+        .get(format!("https://modname_resolver.bpbin.com/{uri}"))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let msg = resp.text().await.map_err(|e| e.to_string())?;
+
+        if msg.is_empty() {
+            return Err(format!("Request failed with status: {status}"));
+        } else {
+            return Err(format!("Request failed ({status}): {msg}"));
+        }
+    }
+
+    let json = resp.json::<T>().await.map_err(|e| e.to_string())?;
+    Ok(json)
+}
+
+pub async fn get_dump(variant: ReadSignal<Option<String>>) -> Result<Option<JsonValue>, String> {
+    let Some(variant) = variant.get() else {
+        return Ok(None);
     };
 
-    let mut file = tokio::fs::File::open(format!("dumps/{filename}")).await?;
-    let mut buf = Vec::new();
-    file.read_to_end(&mut buf).await?;
-
-    Ok(serde_json::from_slice(&buf)?)
+    let res = get_from_resolver(&format!("raw/{variant}")).await?;
+    Ok(Some(res))
 }
