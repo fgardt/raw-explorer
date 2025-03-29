@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
-use base64::Engine;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
 use leptos_router::{
@@ -66,9 +65,8 @@ fn HomePage() -> impl IntoView {
                 Ok(None) => {
                     ().into_any()
                 },
-                Ok(Some((data, name))) => {
+                Ok(Some(data)) => {
                     view! {
-                        <p><DownloadButton data=data.clone() name=name/></p>
                         <JsonViewer val=data start_open=true/>
                     }.into_any()
                 },
@@ -79,26 +77,28 @@ fn HomePage() -> impl IntoView {
     }
 }
 
-use serde_json::Value as JsonValue;
+use crate::util::DedupValue;
 
 #[component]
 fn JsonViewer(
-    #[prop(optional)] key: String,
-    val: JsonValue,
+    #[prop(optional)] key: Arc<str>,
+    val: DedupValue,
     #[prop(optional)] start_open: bool,
 ) -> impl IntoView {
-    let (open, set_open) = signal(start_open);
+    let (open, set_open) = RwSignal::new(start_open).split();
 
     let row = match val {
-        JsonValue::Null => view! { <JsonKV key=key kind="null" val="null".into()/> }.into_any(),
-        JsonValue::Bool(b) => view! { <JsonKV key=key kind="bool" val=b.to_string() /> }.into_any(),
-        JsonValue::Number(n) => {
+        DedupValue::Null => view! { <JsonKV key=key kind="null" val="null".into()/> }.into_any(),
+        DedupValue::Bool(b) => {
+            view! { <JsonKV key=key kind="bool" val=b.to_string() /> }.into_any()
+        }
+        DedupValue::Number(n) => {
             view! { <JsonKV key=key kind="number" val=n.to_string() /> }.into_any()
         }
-        JsonValue::String(s) => {
+        DedupValue::String(s) => {
             view! { <JsonKV key=key kind="text" val=format!("\"{s}\"") /> }.into_any()
         }
-        JsonValue::Array(arr) => {
+        DedupValue::Array(arr) => {
             let len = arr.len();
             let children = move || {
                 open.get().then(|| {
@@ -106,7 +106,7 @@ fn JsonViewer(
                         .enumerate()
                         .map(|(idx, v)| {
                             view! {
-                                <JsonViewer key=idx.to_string() val=v.clone()/>
+                                <JsonViewer key=idx.to_string().into() val=v.clone()/>
                             }
                         })
                         .collect_view()
@@ -121,7 +121,7 @@ fn JsonViewer(
             }
             .into_any()
         }
-        JsonValue::Object(obj) => {
+        DedupValue::Object(obj) => {
             let children = move || {
                 open.get().then(|| {
                     obj.iter()
@@ -152,7 +152,7 @@ fn JsonViewer(
 }
 
 #[component]
-fn JsonKV(key: String, kind: &'static str, #[prop(optional)] val: String) -> impl IntoView {
+fn JsonKV(key: Arc<str>, kind: &'static str, #[prop(optional)] val: String) -> impl IntoView {
     let val = view! {
         <span class=kind>{val}</span>
     }
@@ -170,7 +170,7 @@ fn JsonKV(key: String, kind: &'static str, #[prop(optional)] val: String) -> imp
 
 #[component]
 fn JsonCollapsibleHeader(
-    key: String,
+    key: Arc<str>,
     kind: &'static str,
     #[prop(optional)] val: String,
     write: WriteSignal<bool>,
@@ -222,44 +222,6 @@ fn ModSelector(selected_mod: WriteSignal<Option<String>>) -> impl IntoView {
                 })}
             </select>
         </Suspense>
-    }
-}
-
-#[component]
-fn DownloadButton(data: JsonValue, name: String) -> impl IntoView {
-    let clicked = RwSignal::new(false);
-    let is_clicked = move || clicked.get();
-
-    view! {
-        { move ||
-            if is_clicked() {
-                let a_ref = NodeRef::<leptos::html::A>::new();
-
-                Effect::new(move || {
-                    let Some(a) = a_ref.get_untracked() else {
-                        return;
-                    };
-
-                    a.click();
-                });
-
-                let dump = base64::prelude::BASE64_STANDARD.encode(serde_json::to_string_pretty(&data).unwrap());
-
-                view! {
-                    <a id="dump_dl" node_ref=a_ref href={format!("data:application/json;charset=utf-8;base64,{dump}")} download={format!("{name}.dump.json")}>
-                        "Download dump"
-                    </a>
-                }.into_any()
-            } else {
-                let on_click = move |_| {
-                    clicked.set(true);
-                };
-                view! {
-                    <a id="dump_dl" on:click=on_click>"Download dump"</a>
-                }
-                .into_any()
-            }
-        }
     }
 }
 
@@ -324,13 +286,11 @@ pub async fn get_from_resolver<T: serde::de::DeserializeOwned>(uri: &str) -> Res
     Ok(json)
 }
 
-pub async fn get_dump(
-    variant: ReadSignal<Option<String>>,
-) -> Result<Option<(JsonValue, String)>, String> {
+pub async fn get_dump(variant: ReadSignal<Option<String>>) -> Result<Option<DedupValue>, String> {
     let Some(variant) = variant.get() else {
         return Ok(None);
     };
 
     let res = get_from_resolver(&format!("raw/{variant}")).await?;
-    Ok(Some((res, variant)))
+    Ok(Some(res))
 }
