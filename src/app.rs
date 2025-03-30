@@ -1,5 +1,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
+use fapi_diff::format::prototype::PrototypeDoc;
 use leptos::prelude::*;
 use leptos_icons::Icon;
 use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
@@ -54,12 +55,14 @@ pub fn App() -> impl IntoView {
 #[component]
 fn HomePage() -> impl IntoView {
     let (variant, set_variant) = RwSignal::new(None).split();
+    let (base_version, set_base_version) = RwSignal::new(None).split();
     let dump = LocalResource::new(move || get_dump(variant));
+    let api_docs = Resource::new(move || base_version.get(), get_api_docs);
 
     view! {
         <h1>"Factorio data.raw explorer"</h1>
         <p>"Select the dump variant to explore: "
-            <ModSelector selected_mod=set_variant />
+            <ModSelector selected_mod=set_variant base_version=set_base_version />
         </p>
         <Suspense fallback=move || view! { <p>"Loading..."</p> }>
           {move || Suspend::new(async move {
@@ -68,8 +71,9 @@ fn HomePage() -> impl IntoView {
                     ().into_any()
                 },
                 Ok(Some(data)) => {
+                    let doc = api_docs.get().and_then(|d| d.ok().flatten().map(TypeHelper::new));
                     view! {
-                        <JsonViewer val=data start_open=true/>
+                        <JsonViewer val=data doc=doc start_open=true/>
                     }.into_any()
                 },
                 Err(e) => view! { <p>{e}</p> }.into_any(),
@@ -79,37 +83,39 @@ fn HomePage() -> impl IntoView {
     }
 }
 
-use crate::util::DedupValue;
+use crate::util::{CurrentType, DedupValue, TypeHelper};
 
 #[component]
 fn JsonViewer(
     #[prop(optional)] key: Arc<str>,
     val: DedupValue,
+    #[prop(optional_no_strip)] doc: Option<TypeHelper>,
     #[prop(optional)] start_open: bool,
 ) -> impl IntoView {
     let (open, set_open) = RwSignal::new(start_open).split();
 
     let row = match val {
-        DedupValue::Null => view! { <JsonKV key=key kind="null" val="null".into()/> }.into_any(),
+        DedupValue::Null => view! { <JsonKV key=key class="null" val="null".into()/> }.into_any(),
         DedupValue::Bool(b) => {
-            view! { <JsonKV key=key kind="bool" val=b.to_string() /> }.into_any()
+            view! { <JsonKV key=key class="bool" val=b.to_string() /> }.into_any()
         }
         DedupValue::Number(n) => {
-            view! { <JsonKV key=key kind="number" val=n.to_string() /> }.into_any()
+            view! { <JsonKV key=key class="number" val=n.to_string() /> }.into_any()
         }
         DedupValue::String(s) => {
-            view! { <JsonKV key=key kind="text" val=format!("\"{s}\"") /> }.into_any()
+            view! { <JsonKV key=key class="text" val=format!("\"{s}\"") /> }.into_any()
         }
         DedupValue::Array(arr) => {
             let len = arr.len();
             let raw = arr.clone();
+            let d = doc.clone();
             let children = move || {
                 open.get().then(|| {
                     arr.iter()
                         .enumerate()
                         .map(|(idx, v)| {
                             view! {
-                                <JsonViewer key=idx.to_string().into() val=v.clone()/>
+                                <JsonViewer key=idx.to_string().into() doc=d.clone().and_then(|d| d.traverse_idx(idx)) val=v.clone()/>
                             }
                         })
                         .collect_view()
@@ -117,7 +123,7 @@ fn JsonViewer(
             };
 
             view! {
-                <JsonCollapsibleHeader key=key kind="array" val=len.to_string() write=set_open raw=DedupValue::Array(raw) />
+                <JsonCollapsibleHeader key=key kind=doc.map(|d| d.kind).unwrap_or_default() val=len.to_string() write=set_open raw=DedupValue::Array(raw) />
                 <div class="json-children">
                     {children}
                 </div>
@@ -126,12 +132,13 @@ fn JsonViewer(
         }
         DedupValue::Object(obj) => {
             let raw = obj.clone();
+            let d = doc.clone();
             let children = move || {
                 open.get().then(|| {
                     obj.iter()
                         .map(|(k, v)| {
                             view! {
-                                <JsonViewer key=k.clone() val=v.clone()/>
+                                <JsonViewer key=k.clone() doc=d.clone().and_then(|d| d.traverse_prop(k)) val=v.clone()/>
                             }
                         })
                         .collect_view()
@@ -139,7 +146,7 @@ fn JsonViewer(
             };
 
             view! {
-                <JsonCollapsibleHeader key=key kind="object" write=set_open raw=DedupValue::Object(raw) />
+                <JsonCollapsibleHeader key=key kind=doc.map(|d| d.kind).unwrap_or_default() write=set_open raw=DedupValue::Object(raw) />
                 <div class="json-children">
                     {children}
                 </div>
@@ -156,9 +163,14 @@ fn JsonViewer(
 }
 
 #[component]
-fn JsonKV(key: Arc<str>, kind: &'static str, #[prop(optional)] val: String) -> impl IntoView {
+fn JsonKV(
+    key: Arc<str>,
+    class: &'static str,
+    #[prop(optional_no_strip)] kind: Option<CurrentType>,
+    #[prop(optional)] val: String,
+) -> impl IntoView {
     let val = view! {
-        <span class=kind>{val}</span>
+        <span class=class>{kind.map(|k| k.display()).unwrap_or(val)}</span>
     }
     .into_any();
 
@@ -175,7 +187,7 @@ fn JsonKV(key: Arc<str>, kind: &'static str, #[prop(optional)] val: String) -> i
 #[component]
 fn JsonCollapsibleHeader(
     key: Arc<str>,
-    kind: &'static str,
+    kind: CurrentType,
     #[prop(optional)] val: String,
     write: WriteSignal<bool>,
     raw: DedupValue,
@@ -187,7 +199,7 @@ fn JsonCollapsibleHeader(
     view! {
         <a on:click=move |_| write.update(|v| *v = !*v)>
             <span class="arrow"/>
-            <JsonKV key=key kind=kind val=val/>
+            <JsonKV key=key class="" kind=Some(kind) val=val/>
         </a>
         <Show when=move || is_supported.get()>
             <button on:click={
@@ -202,8 +214,11 @@ fn JsonCollapsibleHeader(
 }
 
 #[component]
-fn ModSelector(selected_mod: WriteSignal<Option<String>>) -> impl IntoView {
-    let mods = LocalResource::new(|| get_from_resolver::<AvailableMods>("stats"));
+fn ModSelector(
+    selected_mod: WriteSignal<Option<String>>,
+    base_version: WriteSignal<Option<String>>,
+) -> impl IntoView {
+    let mods = LocalResource::new(|| fetch_from_resolver::<AvailableMods>("stats"));
 
     view! {
         <Suspense fallback=move || view! {
@@ -223,6 +238,7 @@ fn ModSelector(selected_mod: WriteSignal<Option<String>>) -> impl IntoView {
                         Ok(mods) => {
                             mods.build_list().iter().enumerate().map(|(idx, (name, version))| {
                                     if idx == 0 {
+                                        base_version.set(Some(version.clone()));
                                         selected_mod.set(Some(name.clone()));
                                     }
 
@@ -282,9 +298,9 @@ impl AvailableMods {
     }
 }
 
-pub async fn get_from_resolver<T: serde::de::DeserializeOwned>(uri: &str) -> Result<T, String> {
+pub async fn fetch_data<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, String> {
     let resp = reqwest::Client::new()
-        .get(format!("https://modname_resolver.bpbin.com/{uri}"))
+        .get(url)
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -304,11 +320,32 @@ pub async fn get_from_resolver<T: serde::de::DeserializeOwned>(uri: &str) -> Res
     Ok(json)
 }
 
+pub async fn fetch_from_resolver<T: serde::de::DeserializeOwned>(uri: &str) -> Result<T, String> {
+    fetch_data(&format!("https://modname_resolver.bpbin.com/{uri}")).await
+}
+
 pub async fn get_dump(variant: ReadSignal<Option<String>>) -> Result<Option<DedupValue>, String> {
     let Some(variant) = variant.get() else {
         return Ok(None);
     };
 
-    let res = get_from_resolver(&format!("raw/{variant}")).await?;
+    let res = fetch_from_resolver(&format!("raw/{variant}")).await?;
+    Ok(Some(res))
+}
+
+// api docs need to be fetched from the server side to avoid CORS issues :)
+#[server]
+pub async fn get_api_docs(
+    base_version: Option<String>,
+) -> Result<Option<PrototypeDoc>, ServerFnError> {
+    let Some(base_version) = base_version else {
+        return Ok(None);
+    };
+
+    let res = fetch_data::<PrototypeDoc>(&format!(
+        "https://lua-api.factorio.com/{base_version}/prototype-api.json"
+    ))
+    .await
+    .map_err(ServerFnError::new)?;
     Ok(Some(res))
 }

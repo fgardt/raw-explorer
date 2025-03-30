@@ -1,20 +1,21 @@
 [package]
 name = "raw-explorer"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-base64 = "0.22.1"
 leptos = { version = "0.7.8" }
 leptos-use = { version = "0.15" }
-leptos_router = { version = "0.7.8" }
-axum = { version = "0.7", optional = true }
-console_error_panic_hook = "0.1"
-leptos_axum = { version = "0.7.8", optional = true }
 leptos_meta = { version = "0.7.8" }
+leptos_router = { version = "0.7.8" }
+leptos_axum = { version = "0.7.8", optional = true }
+leptos_icons = "0.5.0"
+icondata = "0.5.0"
+console_error_panic_hook = "0.1"
+axum = { version = "0.7", optional = true }
 tokio = { version = "1", features = ["fs", "rt-multi-thread"], optional = true }
 tower = { version = "0.5", optional = true }
 tower-http = { version = "0.6", features = ["fs"], optional = true }
@@ -29,8 +30,7 @@ reqwest = { version = "0.12", default-features = false, features = [
     "charset",
     "json",
 ] }
-leptos_icons = "0.5.0"
-icondata = "0.5.0"
+fapi-diff = { git = "https://github.com/fgardt/factorio-api-docs-diff.git", default-features = false }
 
 [features]
 hydrate = ["leptos/hydrate"]
