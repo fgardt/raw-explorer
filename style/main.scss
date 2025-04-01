@@ -89,7 +89,7 @@ body {
         margin-left: 1.25rem;
     }
 
-    .json-row:not(:has(a)) {
+    .json-row:not(:has(.arrow)) {
         margin-left: 2rem;
     }
 
@@ -171,18 +171,6 @@ body {
     content: "Object";
 }
 
-.array {
-    &::before {
-        content: "Array[";
-    }
-
-    &::after {
-        content: "]";
-    }
-
-    user-select: none;
-}
-
 .null {
     @include light {
         color: #855A00;
@@ -218,5 +206,80 @@ body {
 
     @include dark {
         color: #31F031;
+    }
+}
+
+.type {
+    @include light {
+        color: #555;
+    }
+
+    @include dark {
+        color: #aaa;
+    }
+
+    :not(.empty)+& {
+        margin-left: 0.5rem;
+    }
+
+    user-select: none;
+}
+
+.doc-link {
+    text-decoration: none;
+    color: orange;
+
+    &:hover {
+        text-decoration: underline;
+    }
+
+    &:active {
+        color: orange;
+    }
+}
+
+.tuple {
+    >:first-child::before {
+        content: "{";
+    }
+
+    >:last-child::after {
+        content: "}";
+    }
+
+    span+span::before {
+        content: ", ";
+    }
+}
+
+.union {
+    span+span::before {
+        content: " or ";
+    }
+}
+
+.array {
+    >::before {
+        content: "array[";
+    }
+
+    >::after {
+        content: "]";
+    }
+}
+
+.dictionary {
+    >:first-child {
+        &::before {
+            content: "dictionary[";
+        }
+
+        &::after {
+            content: " -> ";
+        }
+    }
+
+    >:last-child::after {
+        content: "]";
     }
 }

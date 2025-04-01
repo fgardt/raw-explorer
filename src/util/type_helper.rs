@@ -1,11 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fapi_diff::format::prototype::{
-    ComplexType, LiteralValue, Property, Prototype, PrototypeDoc, Type, TypeConcept,
+    ComplexType, Property, Prototype, PrototypeDoc, Type, TypeConcept,
 };
 
 struct DocHelper {
     docs: PrototypeDoc,
+    base_link: Arc<str>,
 
     type2proto: HashMap<Arc<str>, u16>,
     name2proto: HashMap<Arc<str>, u16>,
@@ -32,8 +33,11 @@ impl DocHelper {
             name2type.insert(type_.name.clone().into(), idx);
         }
 
+        let base_link = format!("https://lua-api.factorio.com/{}", docs.application_version).into();
+
         Self {
             docs,
+            base_link,
             type2proto,
             name2proto,
             name2type,
@@ -96,84 +100,120 @@ impl DocHelper {
             None
         }
     }
-}
 
-#[derive(Clone, Default)]
-pub enum CurrentType {
-    #[default]
-    Unknown,
-    DataRaw,
-    ProtoArray(Arc<str>),
-    TypeOrProto(Arc<str>),
-    Complex(ComplexType),
-}
+    pub fn get_doc_link(&self, name: &str) -> Option<String> {
+        if self.is_proto(name) {
+            Some(format!("{}/prototypes/{name}.html", self.base_link))
+        } else if let Some(t) = self.get_type(name) {
+            if t.inline {
+                return None;
+            }
 
-impl CurrentType {
-    pub fn display(&self) -> String {
-        match self {
-            CurrentType::Unknown => "?".to_string(),
-            CurrentType::DataRaw => "data.raw".to_string(),
-            CurrentType::ProtoArray(name) => format!("dictionary[string -> {name}]"),
-            CurrentType::TypeOrProto(name) => format!("{name}"),
-            CurrentType::Complex(complex) => complex_printer(complex),
+            Some(format!("{}/types/{name}.html", self.base_link))
+        } else {
+            None
         }
     }
 }
 
-fn complex_printer(complex: &ComplexType) -> String {
-    match complex {
-        ComplexType::Array { value } => match value {
-            Type::Simple(t) => format!("array[{t}]"),
-            Type::Complex(c) => format!("array[{}]", complex_printer(c)),
-        },
-        ComplexType::Dictionary { key, value } => {
-            let k = match key {
-                Type::Simple(t) => t.clone(),
-                Type::Complex(c) => complex_printer(c),
-            };
-            let v = match value {
-                Type::Simple(t) => t.clone(),
-                Type::Complex(c) => complex_printer(c),
-            };
+#[derive(Debug, Clone, Default)]
+pub enum CurrentType {
+    #[default]
+    Unknown,
+    DataRaw,
+    TypeOrProto(Arc<str>),
+    BuiltIn(Arc<str>),
+    Complex(ComplexType),
+}
 
-            format!("dictionary[{k} -> {v}]")
-        }
-        ComplexType::Tuple { values } => {
-            let values = values
-                .iter()
-                .map(|v| match v {
-                    Type::Simple(t) => t.clone(),
-                    Type::Complex(c) => complex_printer(c),
+impl CurrentType {
+    fn traverse_prop_internal(&self, helper: &TypeHelper, prop: &str) -> Option<Self> {
+        let res = match &self {
+            Self::DataRaw => {
+                let proto = helper.docs.get_proto_by_type(prop)?;
+                Self::Complex(ComplexType::Dictionary {
+                    key: Type::Simple("string".into()),
+                    value: Type::Simple(proto.name.clone()),
                 })
-                .collect::<Vec<_>>()
-                .join(", ");
+            }
+            Self::TypeOrProto(name) => {
+                if let Some(&p) = helper
+                    .docs
+                    .get_props(name)?
+                    .iter()
+                    .find(|&&p| p.name == prop)
+                {
+                    helper.type_traverse_helper(&p.type_)
+                } else if let Some(custom_p) = &helper.docs.get_proto(name)?.custom_properties {
+                    if custom_p.key_type.as_simple()? != "string" {
+                        return None;
+                    }
 
-            format!("({values})")
-        }
-        ComplexType::Union { options, .. } => {
-            let options = options
-                .iter()
-                .map(|o| match o {
-                    Type::Simple(t) => t.clone(),
-                    Type::Complex(c) => complex_printer(c),
-                })
-                .collect::<Vec<_>>()
-                .join(" | ");
+                    helper.type_traverse_helper(&custom_p.value_type)
+                } else {
+                    return None;
+                }
+            }
+            Self::Complex(ComplexType::Dictionary { key, value }) => {
+                let key = key.as_simple()?;
+                if key != "string" && helper.docs.get_type(&key)?.type_.as_simple()? != "string" {
+                    return None;
+                }
 
-            format!("union[{options}]")
-        }
-        ComplexType::Type { value, .. } => match value {
-            Type::Simple(t) => t.clone(),
-            Type::Complex(c) => complex_printer(c),
-        },
-        ComplexType::Literal(literal) => match &literal.value {
-            LiteralValue::String(s) => s.clone(),
-            LiteralValue::UInt(u) => u.to_string(),
-            LiteralValue::Int(i) => i.to_string(),
-            LiteralValue::Float(f) => f.to_string(),
-            LiteralValue::Boolean(b) => b.to_string(),
-        },
-        ComplexType::Struct => "struct".to_string(),
+                helper.type_traverse_helper(value)
+            }
+            _ => return None,
+        };
+
+        Some(res)
+    }
+
+    fn traverse_idx_internal(&self, helper: &TypeHelper, idx: usize, len: usize) -> Option<Self> {
+        let res = match &self {
+            Self::TypeOrProto(name) => {
+                let t = helper.docs.get_type(name)?;
+                let Type::Complex(c) = &t.type_ else {
+                    return None;
+                };
+
+                Self::Complex(*c.clone()).traverse_idx_internal(helper, idx, len)?
+            }
+            Self::Complex(ComplexType::Array { value }) => helper.type_traverse_helper(value),
+            Self::Complex(ComplexType::Tuple { values }) => {
+                let value = values.get(idx)?;
+                helper.type_traverse_helper(value)
+            }
+            Self::Complex(ComplexType::Union { options, .. }) => {
+                let arr = options
+                    .iter()
+                    .filter_map(|o| {
+                        o.as_complex().and_then(|a| {
+                            a.as_array()
+                                .map(|a| ComplexType::Array { value: a })
+                                .or_else(|| {
+                                    a.as_tuple().and_then(|t| {
+                                        if t.len() >= len {
+                                            Some(ComplexType::Tuple { values: t })
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                })
+                        })
+                    })
+                    .collect::<Box<_>>();
+
+                // for now we'll only search for a single array and use that
+                if arr.len() != 1 {
+                    return None;
+                }
+
+                Self::Complex(arr[0].clone()).traverse_idx_internal(helper, idx, len)?
+            }
+            _ => return None,
+        };
+
+        Some(res)
     }
 }
 
@@ -199,55 +239,47 @@ impl TypeHelper {
         }
     }
 
-    pub fn traverse_prop(&self, prop: &str) -> Option<Self> {
-        match &self.kind {
-            CurrentType::DataRaw => {
-                let proto = self.docs.get_proto_by_type(prop)?;
-                let kind = CurrentType::ProtoArray(proto.name.clone().into());
-                Some(self.clone_with_kind(kind))
-            }
-            CurrentType::ProtoArray(name) => {
-                let kind = CurrentType::TypeOrProto(name.clone());
-                Some(self.clone_with_kind(kind))
-            }
-            CurrentType::TypeOrProto(name) => {
-                let p = *self
-                    .docs
-                    .get_props(name)?
-                    .iter()
-                    .find(|&&p| p.name == prop)?;
+    pub fn traverse_prop(&self, prop: &str) -> Self {
+        let kind = self
+            .kind
+            .traverse_prop_internal(self, prop)
+            .unwrap_or(CurrentType::Unknown);
 
-                let kind = match p.type_ {
-                    Type::Simple(ref t) => CurrentType::TypeOrProto(t.clone().into()),
-                    Type::Complex(ref c) => CurrentType::Complex(*c.clone()),
+        self.clone_with_kind(kind)
+    }
+
+    pub fn traverse_idx(&self, idx: usize, len: usize) -> Self {
+        let kind = self
+            .kind
+            .traverse_idx_internal(self, idx, len)
+            .unwrap_or(CurrentType::Unknown);
+
+        self.clone_with_kind(kind)
+    }
+
+    fn type_traverse_helper(&self, t: &Type) -> CurrentType {
+        use CurrentType::{BuiltIn, TypeOrProto};
+        use Type::{Complex, Simple};
+
+        match t {
+            Simple(t) => {
+                let tt = t.clone().into();
+
+                let Some(t_info) = self.docs.get_type(t) else {
+                    return TypeOrProto(tt);
                 };
 
-                Some(self.clone_with_kind(kind))
+                if t_info.type_ == Simple("builtin".into()) {
+                    BuiltIn(tt)
+                } else {
+                    TypeOrProto(tt)
+                }
             }
-            _ => None,
+            Complex(c) => CurrentType::Complex(*c.clone()),
         }
     }
 
-    pub fn traverse_idx(&self, idx: usize) -> Option<Self> {
-        let CurrentType::Complex(complex) = &self.kind else {
-            return None;
-        };
-
-        let kind = match complex {
-            ComplexType::Array { value } => match value {
-                Type::Simple(t) => CurrentType::TypeOrProto(t.clone().into()),
-                Type::Complex(c) => CurrentType::Complex(*c.clone()),
-            },
-            ComplexType::Tuple { values } => {
-                let value = values.get(idx)?;
-                match value {
-                    Type::Simple(t) => CurrentType::TypeOrProto(t.clone().into()),
-                    Type::Complex(c) => CurrentType::Complex(*c.clone()),
-                }
-            }
-            _ => return None,
-        };
-
-        Some(self.clone_with_kind(kind))
+    pub fn get_doc_link(&self, name: Arc<str>) -> Option<String> {
+        self.docs.get_doc_link(&name)
     }
 }
