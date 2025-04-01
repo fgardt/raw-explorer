@@ -192,7 +192,7 @@ impl CurrentType {
                                 .map(|a| ComplexType::Array { value: a })
                                 .or_else(|| {
                                     a.as_tuple().and_then(|t| {
-                                        if t.len() >= len {
+                                        if t.len() == len {
                                             Some(ComplexType::Tuple { values: t })
                                         } else {
                                             None
