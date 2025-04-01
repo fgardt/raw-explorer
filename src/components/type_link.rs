@@ -27,18 +27,40 @@ impl TypeDisplayMode {
     }
 }
 
+impl std::fmt::Display for TypeDisplayMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Normal => write!(f, "Normal"),
+            Self::All => write!(f, "All"),
+            Self::Off => write!(f, "Off"),
+            Self::Debug => write!(f, "Debug"),
+        }
+    }
+}
+
 #[component]
 pub fn TypeDisplayModeSwitcher(type_mode: RwSignal<TypeDisplayMode>) -> impl IntoView {
     view! {
         <p>"Type display mode: "
-            <button on:click=move |_| type_mode.update(|m| *m = m.next())>
-                {move || match type_mode.get() {
-                    TypeDisplayMode::Normal => "Normal",
-                    TypeDisplayMode::All => "All",
-                    TypeDisplayMode::Off => "Off",
-                    TypeDisplayMode::Debug => "Debug",
-                }}
-            </button>
+        {
+            #[cfg(not(debug_assertions))]
+            const MODES: [TypeDisplayMode; 3] = [TypeDisplayMode::Normal, TypeDisplayMode::All, TypeDisplayMode::Off];
+            #[cfg(debug_assertions)]
+            const MODES: [TypeDisplayMode; 4] = [TypeDisplayMode::Normal, TypeDisplayMode::All, TypeDisplayMode::Off, TypeDisplayMode::Debug];
+
+            MODES.iter().map(|m| {
+                view! {
+                    <button
+                        on:click=move |_| type_mode.update(|cm| *cm = *m)
+                        class="type-display-mode"
+                        class:active=move || *m == type_mode.get()
+                        disabled=move || *m == type_mode.get()
+                    >
+                        {format!("{m}")}
+                    </button>
+                }
+            }).collect_view()
+        }
         </p>
     }
 }

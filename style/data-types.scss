@@ -1,3 +1,41 @@
+.type-display-mode {
+    padding: 0.25rem 0.5rem;
+    min-width: 2.5rem;
+
+    border: 0;
+    border-radius: 0;
+    border-top: #aaa 1px solid;
+    border-bottom: #aaa 1px solid;
+
+    background-color: #fff;
+    color: #000;
+
+    &:disabled {
+        background-color: #aaa;
+        color: #000;
+    }
+
+    &:hover:not(:disabled) {
+        background-color: #ccc;
+    }
+
+    &:first-of-type {
+        border-left: #aaa 1px solid;
+        border-top-left-radius: 0.25rem;
+        border-bottom-left-radius: 0.25rem;
+    }
+
+    &:last-of-type {
+        border-right: #aaa 1px solid;
+        border-top-right-radius: 0.25rem;
+        border-bottom-right-radius: 0.25rem;
+    }
+
+    &+& {
+        border-left: #aaa 2px solid;
+    }
+}
+
 .type {
     @include light {
         color: #555;
