@@ -1,0 +1,74 @@
+.type {
+    @include light {
+        color: #555;
+    }
+
+    @include dark {
+        color: #aaa;
+    }
+
+    :not(.empty)+& {
+        margin-left: 0.5rem;
+    }
+
+    user-select: none;
+}
+
+.doc-link {
+    text-decoration: none;
+    color: orange;
+
+    &:hover {
+        text-decoration: underline;
+    }
+
+    &:active {
+        color: orange;
+    }
+}
+
+.tuple {
+    >:first-child::before {
+        content: "{";
+    }
+
+    >:last-child::after {
+        content: "}";
+    }
+
+    span+span::before {
+        content: ", ";
+    }
+}
+
+.union {
+    span+span::before {
+        content: " or ";
+    }
+}
+
+.array {
+    >::before {
+        content: "array[";
+    }
+
+    >::after {
+        content: "]";
+    }
+}
+
+.dictionary {
+    >:first-child {
+        &::before {
+            content: "dictionary[";
+        }
+
+        &::after {
+            content: " -> ";
+        }
+    }
+
+    >:last-child::after {
+        content: "]";
+    }
+}
