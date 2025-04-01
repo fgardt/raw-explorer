@@ -11,7 +11,7 @@ use leptos_router::{
 use leptos_use::{use_clipboard, UseClipboardReturn};
 
 use crate::{
-    components::{ModSelector, TypeDisplayMode, TypeDisplayModeSwitcher, TypeLink},
+    components::{GitHubCorner, ModSelector, TypeDisplayMode, TypeDisplayModeSwitcher, TypeLink},
     util::{get_dump, DedupValue, TypeHelper},
 };
 
@@ -66,6 +66,7 @@ fn HomePage() -> impl IntoView {
     let api_docs = Resource::new(move || base_version.get(), get_api_docs);
 
     view! {
+        <GitHubCorner repo="fgardt/raw-explorer"/>
         <h1>"Factorio data.raw explorer"</h1>
         <p>"Select the dump variant to explore: "
             <ModSelector selected_mod=set_variant base_version=set_base_version />
