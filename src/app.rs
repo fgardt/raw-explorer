@@ -39,14 +39,8 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
 
     view! {
-        // injects a stylesheet into the document <head>
-        // id=leptos means cargo-leptos will hot-reload this stylesheet
         <Stylesheet id="leptos" href="/pkg/raw-explorer.css"/>
-
-        // sets the document title
         <Title text="data.raw explorer"/>
-
-        // content for this welcome page
         <Router>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
@@ -211,7 +205,9 @@ fn JsonViewer(
     };
 
     view! {
-        <div class="json-row" class:expanded=move || open.get()>
+        // workaround for <https://github.com/leptos-rs/leptos/issues/3983>
+        // <div class="json-row" class:expanded=open>
+        <div class=move || {if open.get() {"json-row expanded"} else {"json-row"}}>
             {row}
         </div>
     }
