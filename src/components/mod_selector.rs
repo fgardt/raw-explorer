@@ -1,15 +1,8 @@
-use std::collections::BTreeSet;
-
 use leptos::prelude::*;
 
-use crate::util::fetch_from_resolver;
-
 #[component]
-pub fn ModSelector(
-    selected_mod: WriteSignal<Option<String>>,
-    base_version: WriteSignal<Option<String>>,
-) -> impl IntoView {
-    let mods = LocalResource::new(|| fetch_from_resolver::<AvailableMods>("stats"));
+pub fn ModSelector(selected_mod: WriteSignal<Option<String>>) -> impl IntoView {
+    let mods = Resource::new(|| (), async |_| get_available_mods().await);
 
     view! {
         <Suspense fallback=move || view! {
@@ -27,9 +20,8 @@ pub fn ModSelector(
                 {move || Suspend::new(async move {
                     match mods.await {
                         Ok(mods) => {
-                            mods.build_list().iter().enumerate().map(|(idx, (name, version))| {
+                            mods.iter().enumerate().map(|(idx, (name, version))| {
                                     if idx == 0 {
-                                        base_version.set(Some(version.clone()));
                                         selected_mod.set(Some(name.clone()));
                                     }
 
@@ -40,7 +32,7 @@ pub fn ModSelector(
                         }
                         Err(e) => {
                             view! {
-                                <option value="" disabled selected>{e}</option>
+                                <option value="" disabled selected>{e.to_string()}</option>
                             }.into_any()
                         }
                     }
@@ -50,14 +42,16 @@ pub fn ModSelector(
     }
 }
 
-#[derive(serde::Deserialize, Clone)]
+#[cfg(feature = "ssr")]
+#[derive(serde::Serialize, serde::Deserialize)]
 struct AvailableMods {
     #[serde(rename = "processed")]
-    raw: BTreeSet<String>,
+    raw: std::collections::BTreeSet<String>,
 }
 
+#[cfg(feature = "ssr")]
 impl AvailableMods {
-    fn build_list(&self) -> Box<[(String, String)]> {
+    fn build_list(self) -> Box<[(String, String)]> {
         const WUBE_MODS: [&str; 4] = ["base", "space-age", "quality", "elevated-rails"];
 
         let mut split = self
@@ -87,4 +81,12 @@ impl AvailableMods {
         });
         split.into_boxed_slice()
     }
+}
+
+#[server]
+pub async fn get_available_mods() -> Result<Box<[(String, String)]>, ServerFnError> {
+    crate::util::fetch_from_resolver::<AvailableMods>("stats")
+        .await
+        .map(AvailableMods::build_list)
+        .map_err(|e| ServerFnError::ServerError(e))
 }

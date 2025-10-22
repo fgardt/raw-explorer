@@ -55,15 +55,14 @@ pub fn App() -> impl IntoView {
 #[component]
 fn HomePage() -> impl IntoView {
     let (variant, set_variant) = RwSignal::new(None).split();
-    let (base_version, set_base_version) = RwSignal::new(None).split();
     let type_mode = RwSignal::new(TypeDisplayMode::Normal);
     let dump = LocalResource::new(move || get_dump(variant));
-    let api_docs = Resource::new(move || base_version.get(), get_api_docs);
+    let api_docs = Resource::new(|| (), async |_| get_api_docs().await);
 
     view! {
         <h1>"Factorio data.raw explorer"</h1>
         <p>"Select the dump variant to explore: "
-            <ModSelector selected_mod=set_variant base_version=set_base_version />
+            <ModSelector selected_mod=set_variant />
         </p>
         <TypeDisplayModeSwitcher type_mode=type_mode />
         <Suspense fallback=move || view! { <p>"Loading..."</p> }>
@@ -73,7 +72,7 @@ fn HomePage() -> impl IntoView {
                     ().into_any()
                 },
                 Ok(Some(data)) => {
-                    let doc = api_docs.get().and_then(|d| d.ok().flatten().map(TypeHelper::new));
+                    let doc = api_docs.get().and_then(|d| d.ok().map(TypeHelper::new));
                     view! {
                         <JsonViewer val=data doc=doc type_mode=type_mode.read_only() start_open=true/>
                     }.into_any()
@@ -282,17 +281,33 @@ fn JsonCollapsibleHeader(
 
 // api docs need to be fetched from the server side to avoid CORS issues :)
 #[server]
-pub async fn get_api_docs(
-    base_version: Option<String>,
-) -> Result<Option<PrototypeDoc>, ServerFnError> {
-    let Some(base_version) = base_version else {
-        return Ok(None);
-    };
+pub async fn get_api_docs() -> Result<PrototypeDoc, ServerFnError> {
+    #[derive(serde::Deserialize)]
+    struct ProcessedMods {
+        #[serde(rename = "processed")]
+        raw: std::collections::BTreeSet<String>,
+    }
 
-    let res = crate::util::fetch_data::<PrototypeDoc>(&format!(
+    let base_version = crate::util::fetch_from_resolver::<ProcessedMods>("stats")
+        .await
+        .map_err(|_| ())
+        .and_then(|a| {
+            a.raw
+                .iter()
+                .find_map(|r| {
+                    if r.starts_with("base_") {
+                        Some(r.trim_start_matches("base_").to_string())
+                    } else {
+                        None
+                    }
+                })
+                .ok_or(())
+        })
+        .unwrap_or_else(|()| "latest".to_string());
+
+    crate::util::fetch_data(&format!(
         "https://lua-api.factorio.com/{base_version}/prototype-api.json"
     ))
     .await
-    .map_err(ServerFnError::new)?;
-    Ok(Some(res))
+    .map_err(ServerFnError::new)
 }
