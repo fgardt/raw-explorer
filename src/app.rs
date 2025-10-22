@@ -41,6 +41,7 @@ pub fn App() -> impl IntoView {
     view! {
         <Stylesheet id="leptos" href="/pkg/raw-explorer.css"/>
         <Title text="data.raw explorer"/>
+        <GitHubCorner repo="fgardt/raw-explorer"/>
         <Router>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
@@ -60,7 +61,6 @@ fn HomePage() -> impl IntoView {
     let api_docs = Resource::new(move || base_version.get(), get_api_docs);
 
     view! {
-        <GitHubCorner repo="fgardt/raw-explorer"/>
         <h1>"Factorio data.raw explorer"</h1>
         <p>"Select the dump variant to explore: "
             <ModSelector selected_mod=set_variant base_version=set_base_version />
