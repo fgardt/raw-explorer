@@ -204,9 +204,7 @@ fn JsonViewer(
     };
 
     view! {
-        // workaround for <https://github.com/leptos-rs/leptos/issues/3983>
-        // <div class="json-row" class:expanded=open>
-        <div class=move || {if open.get() {"json-row expanded"} else {"json-row"}}>
+        <div class="json-row" class:expanded=open>
             {row}
         </div>
     }
