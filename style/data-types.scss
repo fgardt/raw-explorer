@@ -75,19 +75,19 @@
     }
 
     span+span::before {
-        content: ", ";
+        content: ",";
     }
 }
 
 .union {
     span+span::before {
-        content: " or ";
+        content: "|";
     }
 }
 
 .array {
     >::before {
-        content: "array[";
+        content: "arr[";
     }
 
     >::after {
@@ -98,11 +98,12 @@
 .dictionary {
     >:first-child {
         &::before {
-            content: "dictionary[";
+            content: "dict[";
         }
 
         &::after {
-            content: " -> ";
+            content: "🠞";
+            line-height: 1rem;
         }
     }
 
