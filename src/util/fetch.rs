@@ -1,5 +1,3 @@
-use leptos::prelude::*;
-
 use super::DedupValue;
 
 pub async fn fetch_data<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, String> {
@@ -28,11 +26,7 @@ pub async fn fetch_from_resolver<T: serde::de::DeserializeOwned>(uri: &str) -> R
     fetch_data(&format!("https://modname_resolver.bpbin.com/{uri}")).await
 }
 
-pub async fn get_dump(variant: ReadSignal<Option<String>>) -> Result<Option<DedupValue>, String> {
-    let Some(variant) = variant.get() else {
-        return Ok(None);
-    };
-
+pub async fn get_dump(variant: String) -> Result<DedupValue, String> {
     let res = fetch_from_resolver(&format!("raw/{variant}")).await?;
-    Ok(Some(res))
+    Ok(res)
 }

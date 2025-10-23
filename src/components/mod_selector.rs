@@ -1,44 +1,78 @@
-use leptos::prelude::*;
+use leptos::{ev::SubmitEvent, html, prelude::*};
+use leptos_icons::Icon;
+use leptos_router::{
+    components::A,
+    hooks::{use_navigate, use_params},
+};
+
+use crate::app::VariantParams;
 
 #[component]
-pub fn ModSelector(selected_mod: WriteSignal<Option<String>>) -> impl IntoView {
+pub fn ModSelector() -> impl IntoView {
+    const WUBE_MODS: [&str; 4] = ["base", "space-age", "quality", "elevated-rails"];
+    let params = use_params::<VariantParams>();
+    let variant = move || params.read().as_ref().ok().and_then(|p| p.variant.clone());
+
     let mods = Resource::new(|| (), async |_| get_available_mods().await);
 
+    let other_mod: NodeRef<html::Input> = NodeRef::new();
+    let on_submit = move |ev: SubmitEvent| {
+        ev.prevent_default();
+
+        let val = other_mod.get().expect("<input> should be mounted").value();
+        if !val.is_empty() {
+            let navigate = use_navigate();
+            navigate(&format!("/e/{}", val), Default::default());
+        }
+    };
+
     view! {
-        <Suspense fallback=move || view! {
-            <select>
-                <option value="" disabled selected>"Loading available mods.."</option>
-            </select>
-        }>
-            <select on:change:target=move |ev| {
-                let m = ev.target().value();
-                let val = if m.is_empty() { None } else { Some(m) };
-
-                selected_mod.set(val);
-            }>
-                <option value="" disabled>"Select a mod"</option>
-                {move || Suspend::new(async move {
-                    match mods.await {
-                        Ok(mods) => {
-                            mods.iter().enumerate().map(|(idx, (name, version))| {
-                                    if idx == 0 {
-                                        selected_mod.set(Some(name.clone()));
-                                    }
-
-                                    view! {
-                                        <option value={name.clone()}>{name.clone()} " (" {version.clone()} ")"</option>
-                                    }
-                                }).collect_view().into_any()
-                        }
-                        Err(e) => {
-                            view! {
-                                <option value="" disabled selected>{e.to_string()}</option>
-                            }.into_any()
-                        }
+        <div class="mod-select">
+            {
+                WUBE_MODS.iter().map(|m| {
+                    let m = m.to_string();
+                    view! {
+                        <A href={format!("/e/{}", m.clone())}>
+                            {m.clone()}
+                        </A>
                     }
-                })}
-            </select>
-        </Suspense>
+                }).collect_view()
+            }
+
+            <form on:submit=on_submit>
+                <input type="text" list="mods" node_ref=other_mod placeholder="search for other mods" value=move|| {
+                    if let Some(v) = variant() && !WUBE_MODS.contains(&v.as_str()) {
+                        v
+                    } else {
+                        "".to_string()
+                    }
+                }/>
+                <datalist id="mods">
+                    <Suspense>
+                        {move || Suspend::new(async move {
+                            let Ok(mods) = mods.await else {
+                                return ().into_any();
+                            };
+
+                            mods.iter().filter_map(|(name, version)| {
+                                if WUBE_MODS.contains(&name.as_str()) {
+                                    return None;
+                                }
+
+                                let res = view! {
+                                    <option value={name.clone()}>{name.clone()} " (" {version.clone()} ")"</option>
+                                };
+
+                                Some(res)
+                            }).collect_view().into_any()
+                        })}
+                    </Suspense>
+                </datalist>
+                <button type="submit">
+                    <Icon icon={icondata::FiSearch}/>
+                </button>
+            </form>
+        </div>
     }
 }
 

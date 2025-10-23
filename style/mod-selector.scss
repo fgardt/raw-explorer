@@ -1,0 +1,96 @@
+.mod-select {
+    font-size: 0.875rem;
+
+    >* {
+        display: inline-block;
+
+        &:first-child {
+            border-left: #aaa 1px solid;
+            border-top-left-radius: 0.25rem;
+            border-bottom-left-radius: 0.25rem;
+        }
+
+        &:last-child>:last-child {
+            border-right: #aaa 1px solid;
+            border-top-right-radius: 0.25rem;
+            border-bottom-right-radius: 0.25rem;
+        }
+
+        &:not(:first-child) {
+            border-left: #aaa 1px solid;
+        }
+
+        &:not(:last-child) {
+            border-right: #aaa 1px solid;
+        }
+
+        &.active {
+            background-color: #aaa;
+        }
+    }
+
+    >a {
+        text-decoration: none;
+        text-align: center;
+        font-size: inherit;
+
+        padding: 0.25rem 0.5rem;
+        min-width: 2.5rem;
+
+        border: 0;
+        border-radius: 0;
+        border-top: #aaa 1px solid;
+        border-bottom: #aaa 1px solid;
+
+        background-color: #fff;
+        color: #000;
+        cursor: pointer;
+
+        &:hover:not([aria-current="page"]) {
+            background-color: #ccc;
+        }
+
+        &[aria-current="page"],
+        &:active {
+            background-color: #aaa;
+            cursor: default;
+        }
+    }
+
+    >form {
+        >* {
+            font-size: inherit;
+
+            padding: 0.25rem 0.5rem;
+
+            border: 0;
+            border-radius: 0;
+            border-top: #aaa 1px solid;
+            border-bottom: #aaa 1px solid;
+
+            background-color: #fff;
+            color: #000;
+
+            &:hover:not(:focus) {
+                background-color: #ccc;
+            }
+        }
+
+        >input[type="text"] {
+            border-right: 1px solid #aaa;
+            min-width: 16rem;
+        }
+
+        >button[type="submit"] {
+            border-left: 1px solid #aaa;
+
+            >svg {
+                vertical-align: middle;
+                margin-top: -0.25rem;
+
+                width: 1.25rem;
+                height: 1.25rem;
+            }
+        }
+    }
+}

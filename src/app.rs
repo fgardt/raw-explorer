@@ -3,16 +3,13 @@ use std::sync::Arc;
 use fapi_diff::format::prototype::PrototypeDoc;
 use leptos::prelude::*;
 use leptos_icons::Icon;
-use leptos_meta::{provide_meta_context, MetaTags, Stylesheet, Title};
-use leptos_router::{
-    components::{Route, Router, Routes},
-    StaticSegment,
-};
-use leptos_use::{use_clipboard, UseClipboardReturn};
+use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
+use leptos_router::{components::*, hooks::use_params, params::Params, path};
+use leptos_use::{UseClipboardReturn, use_clipboard};
 
 use crate::{
     components::{GitHubCorner, ModSelector, TypeDisplayMode, TypeDisplayModeSwitcher, TypeLink},
-    util::{get_dump, DedupValue, TypeHelper},
+    util::{DedupValue, TypeHelper, get_dump},
 };
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -42,10 +39,14 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/raw-explorer.css"/>
         <Title text="data.raw explorer"/>
         <GitHubCorner repo="fgardt/raw-explorer"/>
+        <h1>"Factorio data.raw explorer"</h1>
         <Router>
             <main>
                 <Routes fallback=|| "Page not found.".into_view()>
-                    <Route path=StaticSegment("") view=HomePage/>
+                    <Route path=path!("/") view=HomePage />
+                    <ParentRoute path=path!("/e") view=VariantSelector>
+                        <Route path=path!(":variant") view=Explorer />
+                    </ParentRoute>
                 </Routes>
             </main>
         </Router>
@@ -54,24 +55,47 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn HomePage() -> impl IntoView {
-    let (variant, set_variant) = RwSignal::new(None).split();
+    view! {
+        <ModSelector/>
+        <p>"Select a mod to explore its data.raw dump"</p>
+    }
+}
+
+#[derive(Params, PartialEq)]
+pub struct VariantParams {
+    pub variant: Option<String>,
+}
+
+#[component]
+fn VariantSelector() -> impl IntoView {
+    view! {
+        <ModSelector/>
+        <Outlet/>
+    }
+}
+
+#[component]
+fn Explorer() -> impl IntoView {
+    let params = use_params::<VariantParams>();
+    let variant = move || {
+        params
+            .read()
+            .as_ref()
+            .ok()
+            .and_then(|p| p.variant.clone())
+            .expect("variant is required")
+    };
+    let dump = LocalResource::new(move || get_dump(variant()));
+
     let type_mode = RwSignal::new(TypeDisplayMode::Normal);
-    let dump = LocalResource::new(move || get_dump(variant));
     let api_docs = Resource::new(|| (), async |_| get_api_docs().await);
 
     view! {
-        <h1>"Factorio data.raw explorer"</h1>
-        <p>"Select the dump variant to explore: "
-            <ModSelector selected_mod=set_variant />
-        </p>
         <TypeDisplayModeSwitcher type_mode=type_mode />
         <Suspense fallback=move || view! { <p>"Loading..."</p> }>
           {move || Suspend::new(async move {
             match dump.await {
-                Ok(None) => {
-                    ().into_any()
-                },
-                Ok(Some(data)) => {
+                Ok(data) => {
                     let doc = api_docs.get().and_then(|d| d.ok().map(TypeHelper::new));
                     view! {
                         <JsonViewer val=data doc=doc type_mode=type_mode.read_only() start_open=true/>
@@ -271,7 +295,7 @@ fn JsonCollapsibleHeader(
                 let raw = raw.clone(); // cloning DedupValue should be cheap since its mostly Arc internally
                 move |_| copy(&serde_json::to_string_pretty(&raw).unwrap())
             }>
-                <Icon icon={icondata::FiCopy} width="1.1rem" height="1.1rem" />
+                <Icon icon={icondata::FiCopy} width="1rem" height="1rem" />
             </button>
         </Show>
     }

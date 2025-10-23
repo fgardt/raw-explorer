@@ -1,4 +1,7 @@
 .type-display-mode {
+    text-align: center;
+    font-size: 0.875rem;
+
     padding: 0.25rem 0.5rem;
     min-width: 2.5rem;
 
@@ -9,30 +12,36 @@
 
     background-color: #fff;
     color: #000;
+    cursor: pointer;
 
-    &:disabled {
+    &.active {
         background-color: #aaa;
         color: #000;
+        cursor: default;
     }
 
-    &:hover:not(:disabled) {
+    &:hover:not(.active) {
         background-color: #ccc;
     }
 
-    &:first-of-type {
+    &:first-child {
         border-left: #aaa 1px solid;
         border-top-left-radius: 0.25rem;
         border-bottom-left-radius: 0.25rem;
     }
 
-    &:last-of-type {
+    &:last-child {
         border-right: #aaa 1px solid;
         border-top-right-radius: 0.25rem;
         border-bottom-right-radius: 0.25rem;
     }
 
-    &+& {
-        border-left: #aaa 2px solid;
+    &:not(:first-child) {
+        border-left: #aaa 1px solid;
+    }
+
+    &:not(:last-child) {
+        border-right: #aaa 1px solid;
     }
 }
 
