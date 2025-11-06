@@ -19,6 +19,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
             <head>
                 <meta charset="utf-8"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <link rel="preconnect" href="https://modname_resolver.bpbin.com"/>
                 <AutoReload options=options.clone() />
                 <HydrationScripts options/>
                 <MetaTags/>
