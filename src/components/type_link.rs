@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use fapi_diff::format::prototype::{ComplexType, LiteralValue, Type};
 use leptos::prelude::*;
+use leptos_icons::Icon;
 
 use crate::util::{CurrentType, TypeHelper};
 
@@ -137,6 +138,7 @@ fn ComplexTypeLink(
                 (Dictionary { key, value }, Normal | All | Debug) => view! {
                     <span class="type dictionary">
                         <ComplexLinkInternal doc=d.clone() complex=key.clone() type_mode=type_mode />
+                        <Icon icon={icondata::MdiArrowRightThick}/>
                         <ComplexLinkInternal doc=d.clone() complex=value.clone() type_mode=type_mode />
                     </span>
                 }.into_any(),

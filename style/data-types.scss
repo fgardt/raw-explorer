@@ -109,11 +109,10 @@
         &::before {
             content: "dict[";
         }
+    }
 
-        &::after {
-            content: "🠞";
-            line-height: 1rem;
-        }
+    >svg {
+        vertical-align: sub;
     }
 
     >:last-child::after {
