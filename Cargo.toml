@@ -73,6 +73,16 @@ style-file = "style/main.scss"
 # Optional. Env: LEPTOS_ASSETS_DIR.
 assets-dir = "public"
 
+# Enables additional file hashes on outputted css, js, and wasm files
+#
+# Optional: Defaults to false. Can also be set with the LEPTOS_HASH_FILES=false env var (must be set at runtime too)
+hash-files = false
+
+# Sets the name for the file cargo-leptos uses to track the most recent hashes
+#
+# Optional: Defaults to "hash.txt". Can also be set with the LEPTOS_HASH_FILE_NAME="hash.txt" env var
+hash-file-name = "hash.txt"
+
 # The IP and port (ex: 127.0.0.1:3000) where the server serves the content. Use it in your server setup.
 site-addr = "0.0.0.0:3000"
 
