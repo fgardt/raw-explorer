@@ -7,9 +7,10 @@ use leptos_router::{
 
 use crate::app::VariantParams;
 
+const WUBE_MODS: [&str; 5] = ["base", "space-age", "quality", "recycler", "elevated-rails"];
+
 #[component]
 pub fn ModSelector() -> impl IntoView {
-    const WUBE_MODS: [&str; 4] = ["base", "space-age", "quality", "elevated-rails"];
     let params = use_params::<VariantParams>();
     let variant = move || params.read().as_ref().ok().and_then(|p| p.variant.clone());
 
@@ -86,8 +87,6 @@ struct AvailableMods {
 #[cfg(feature = "ssr")]
 impl AvailableMods {
     fn build_list(self) -> Box<[(String, String)]> {
-        const WUBE_MODS: [&str; 4] = ["base", "space-age", "quality", "elevated-rails"];
-
         let mut split = self
             .raw
             .iter()
@@ -122,5 +121,5 @@ pub async fn get_available_mods() -> Result<Box<[(String, String)]>, ServerFnErr
     crate::util::fetch_from_resolver::<AvailableMods>("stats")
         .await
         .map(AvailableMods::build_list)
-        .map_err(|e| ServerFnError::ServerError(e))
+        .map_err(ServerFnError::ServerError)
 }
