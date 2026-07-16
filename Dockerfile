@@ -38,6 +38,10 @@ RUN cargo leptos build --release -vv
 
 # Final image
 FROM debian:stable-slim AS runner
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY --from=builder /work/target/release/raw-explorer /app/
