@@ -3,7 +3,7 @@ use std::sync::Arc;
 use fapi_diff::format::prototype::PrototypeDoc;
 use leptos::prelude::*;
 use leptos_icons::Icon;
-use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
+use leptos_meta::{HashedStylesheet, MetaTags, Title, provide_meta_context};
 use leptos_router::{components::*, hooks::use_params, params::Params, path};
 use leptos_use::{UseClipboardReturn, use_clipboard};
 
@@ -21,6 +21,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
                 <meta name="format-detection" content="telephone=no"/>
                 <link rel="preconnect" href="https://modname_resolver.bpbin.com"/>
+                <HashedStylesheet id="main" options=options.clone() />
                 <AutoReload options=options.clone() />
                 <HydrationScripts options/>
                 <MetaTags/>
@@ -38,7 +39,6 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
 
     view! {
-        <Stylesheet id="leptos" href="/pkg/raw-explorer.css"/>
         <Title text="data.raw explorer"/>
         <GitHubCorner repo="fgardt/raw-explorer"/>
         <h1>"Factorio data.raw explorer"</h1>
